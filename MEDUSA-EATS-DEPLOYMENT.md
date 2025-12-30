@@ -26,8 +26,8 @@
 | Domain | Status | Points To |
 |--------|--------|-----------|
 | api.orpingtonrasoi.co.uk | Working | Backend API |
+| admin.orpingtonrasoi.co.uk | Working | Admin Panel |
 | orpingtonrasoi.co.uk | Placeholder | Storefront (coming soon) |
-| admin.orpingtonrasoi.co.uk | Placeholder | Admin (coming soon) |
 
 ## Admin Credentials
 
@@ -121,16 +121,33 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Install build dependencies
 RUN apk add --no-cache python3 make g++
+
+# Install yarn
 RUN corepack enable && corepack prepare yarn@1.22.22 --activate
 
+# Copy package files
 COPY package.json yarn.lock .yarnrc.yml ./
+
+# Install dependencies
 RUN yarn install --frozen-lockfile
 
+# Copy source code
 COPY . .
+
+# Build the application
 RUN yarn build
 
+# Copy admin build from .medusa/server/public to /app/public for production serving
+# This fixes MedusaJS v2.12.3 path resolution issue where admin-bundler looks for
+# index.html in ./public/admin but build outputs to .medusa/server/public/admin
+RUN cp -r .medusa/server/public ./public || true
+
+# Expose port
 EXPOSE 9000
+
+# Start command
 CMD ["yarn", "start"]
 ```
 
@@ -142,7 +159,7 @@ loadEnv(process.env.NODE_ENV || "development", process.cwd())
 
 module.exports = defineConfig({
   admin: {
-    disable: true,  // Disabled for POC - enable when ready
+    backendUrl: process.env.BACKEND_URL || "http://localhost:9000",
   },
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
@@ -168,12 +185,12 @@ api.orpingtonrasoi.co.uk {
     reverse_proxy orprasoi-v2-backend:9000
 }
 
-orpingtonrasoi.co.uk {
-    respond "Orpington Rasoi - Storefront coming soon!" 200
+admin.orpingtonrasoi.co.uk {
+    reverse_proxy orprasoi-v2-backend:9000
 }
 
-admin.orpingtonrasoi.co.uk {
-    respond "Orpington Rasoi Admin - Coming soon!" 200
+orpingtonrasoi.co.uk {
+    respond "Orpington Rasoi - Storefront coming soon!" 200
 }
 ```
 
@@ -217,8 +234,7 @@ curl -H "x-publishable-api-key: YOUR_KEY" https://api.orpingtonrasoi.co.uk/store
 
 ## Next Steps
 
-1. **Enable Admin Panel** — Update `medusa-config.ts` to set `disable: false` and rebuild
-2. **Create Storefront** — Build Next.js storefront using MedusaJS Starter or custom
-3. **Configure Stripe** — Add payment provider for checkout
-4. **Add Products** — Populate store with menu items via admin or API
-5. **Configure Shipping** — Set up delivery options for restaurant
+1. **Create Storefront** — Build Next.js storefront using MedusaJS Starter or custom
+2. **Configure Stripe** — Add payment provider for checkout
+3. **Add Products** — Populate store with menu items via admin panel
+4. **Configure Shipping** — Set up delivery options for restaurant
